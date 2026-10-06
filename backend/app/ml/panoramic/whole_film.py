@@ -19,9 +19,13 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
+
+if TYPE_CHECKING:  # torch is imported lazily at call time; this is for the annotation only
+    import torch
 
 from app import config
 from app.ml.measurement.staging import stage_for_pct, stages_overlapping
