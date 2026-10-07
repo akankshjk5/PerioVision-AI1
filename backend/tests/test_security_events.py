@@ -86,13 +86,20 @@ def test_failures_are_counted_per_actor_not_in_total():
 
 
 def test_authorization_probing_is_detected(client):
-    """The S1 finding: refusals were audited but nothing added them up."""
-    entries = [entry("PATIENT_ACCESS_DENIED", minutes_ago=i % 4) for i in range(6)]
-    entries += [entry("PERMISSION_DENIED", minutes_ago=i % 4) for i in range(5)]
+    """The S1 finding: refusals were audited but nothing added them up.
+
+    The action names come from the rule itself rather than being retyped here, so the
+    test follows the rule if its triggering events ever change, instead of silently
+    testing an event the rule no longer watches.
+    """
+    rule = next(r for r in events.RULES if r.name == "authorization_probing")
+    patient_denied, permission_denied = sorted(rule.actions)
+    entries = [entry(patient_denied, minutes_ago=i % 4) for i in range(6)]
+    entries += [entry(permission_denied, minutes_ago=i % 4) for i in range(5)]
     alerts = {a.rule: a for a in events.detect(entries)}
     assert "authorization_probing" in alerts
     assert alerts["authorization_probing"].count == 11
-    assert alerts["authorization_probing"].actions == ["PATIENT_ACCESS_DENIED", "PERMISSION_DENIED"]
+    assert alerts["authorization_probing"].actions == sorted(rule.actions)
 
 
 def test_mass_patient_access_is_detected():

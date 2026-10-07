@@ -9,6 +9,7 @@ the gate's verdict rather than on a returned model object; `test_model_signing.p
 covers the integrity gate and `test_ml_logic.py` the inference path.
 """
 import json
+import secrets
 
 import pytest
 
@@ -47,10 +48,15 @@ def lab(tmp_path, monkeypatch):
     weights.mkdir()
     (weights / MODEL_FILE).write_bytes(b"pretend tooth detector weights" * 500)
 
-    signer = Signer(keys_dir=tmp_path / "keys", password="Provenance-test-1")
+    # Generated per run, not written in the source: these unlock throwaway keypairs
+    # that live only in tmp_path, and a literal here reads like a committed credential
+    # to a secret scanner.
+    build_passphrase = secrets.token_hex(16)
+    approval_passphrase = secrets.token_hex(16)
+    signer = Signer(keys_dir=tmp_path / "keys", password=build_passphrase)
     signer.generate_keypair()
     approver = model_approval.approval_signer(keys_dir=tmp_path / "keys",
-                                              password="Approval-test-1")
+                                              password=approval_passphrase)
     approver.generate_keypair()
 
     monkeypatch.setattr(model_provenance.config, "MODEL_FLOOR_FILE", tmp_path / "model_floor.json")
@@ -80,6 +86,7 @@ def lab(tmp_path, monkeypatch):
 
     return type("Lab", (), {
         "weights": weights, "signer": signer, "approver": approver, "tmp": tmp_path,
+        "build_passphrase": build_passphrase, "approval_passphrase": approval_passphrase,
         "sign": staticmethod(sign), "approve": staticmethod(approve),
         "sign_and_approve": staticmethod(sign_and_approve), "registry": staticmethod(registry)})
 
@@ -290,7 +297,10 @@ def test_refusal_is_audited_without_exposing_sensitive_detail(lab, app):
 
     blob = json.dumps(refusals[0])
     assert str(lab.weights) not in blob, "absolute path leaked into the audit log"
-    assert "Provenance-test-1" not in blob, "signing password leaked into the audit log"
+    # Against the passphrase actually in use: a hardcoded literal here would pass
+    # whatever the log contained, which is the opposite of what this asserts.
+    assert lab.build_passphrase not in blob, "signing password leaked into the audit log"
+    assert lab.approval_passphrase not in blob, "approval password leaked into the audit log"
     for entry in entries:
         assert "sha256" not in json.dumps(entry.get("details", {})) or entry["action"] == "MODEL_LOADED"
 

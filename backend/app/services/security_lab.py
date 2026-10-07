@@ -695,12 +695,16 @@ def detection_rules() -> list[dict]:
         when = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=minutes_ago)
         return {"action": action, "actor": actor, "outcome": "denied", "timestamp": when.isoformat()}
 
-    probing = [entry("PATIENT_ACCESS_DENIED", minutes_ago=i % 4) for i in range(11)]
+    # Taken from the rule rather than retyped, so the scenario always exercises the
+    # events the rule actually watches.
+    probing_rule = next(r for r in events.RULES if r.name == "authorization_probing")
+    denied_action = sorted(probing_rule.actions)[0]
+    probing = [entry(denied_action, minutes_ago=i % 4) for i in range(11)]
     alerts = {a.rule: a for a in events.detect(probing)}
     steps = [
         _step("Eleven refused patient reads raise a probing alert", "authorization_probing" in alerts),
         _step("One refusal does not",
-              not [a for a in events.detect([entry("PATIENT_ACCESS_DENIED")])
+              not [a for a in events.detect([entry(denied_action)])
                    if a.rule == "authorization_probing"]),
     ]
     spread = [entry("LOGIN_FAILED", actor=f"D-{i}") for i in range(3) for _ in range(4)]
