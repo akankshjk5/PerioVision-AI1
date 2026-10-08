@@ -11,6 +11,11 @@
 # TRUSTED_PROXY_COUNT so the real client IP drives rate limiting and audit records.
 # ==============================================================================
 
+# NOTE on package names: python:3.11-slim is Debian 13 (trixie). libgl1-mesa-glx was
+# removed there (libgl1 replaces it), and libglib2.0-0 was renamed libglib2.0-0t64 in
+# the 64-bit time_t transition. The old names make apt-get exit 100, "Unable to locate
+# package", before anything installs - which is what broke the container scan.
+
 # --- Stage 1: Build & Dependencies ---
 FROM python:3.11-slim@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3ba14f7e16e487b AS builder
 
@@ -19,8 +24,8 @@ WORKDIR /app
 # Install system libraries for OpenCV and PyTorch
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
+    libgl1 \
+    libglib2.0-0t64 \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -34,8 +39,8 @@ FROM python:3.11-slim@sha256:bab1b7ef4b450c81002278d035eff85ebe394ae94df904f7a3b
 # Runtime libraries only: no compiler, no build tools. curl is needed by the
 # health check and is the single extra binary we accept in the final image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
+    libgl1 \
+    libglib2.0-0t64 \
     libgomp1 \
     curl \
     && rm -rf /var/lib/apt/lists/*

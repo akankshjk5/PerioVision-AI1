@@ -47,11 +47,21 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: npm audit (frontend)
+      # Two steps on purpose. The gate is what actually ships to a browser; the
+      # second reports the build-time tree without blocking on advisories that have
+      # no upstream fix. Checked at the time of writing: braces has only ever
+      # published up to 3.0.3 and the advisory covers <=3.0.3, so there is nothing to
+      # upgrade to, and micromatch and fast-glob are flagged solely via braces. The
+      # remainder need Tailwind 3 -> 4 and Vite 5 -> 8, both breaking framework
+      # migrations, for a denial-of-service in tooling that never reaches production.
+      - name: npm audit (production dependencies - gate)
         working-directory: frontend
-        # Build tooling routinely carries low-severity advisories with no fix
-        # available; fail on genuinely exploitable ones instead of all of them.
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (build-time dependencies - reported, not gated)
+        working-directory: frontend
+        if: always()
+        run: npm audit --audit-level=high || true
 
   secrets:
     name: Secret scan
@@ -97,7 +107,12 @@ jobs:
 
       # pip-audit covers what we declare; this covers what we ship. The base image
       # carries an OS userland - openssl, zlib, libxml2 - that no Python manifest lists.
+      # id + explicit conditions below: without them the Trivy steps run on a failed
+      # build, find no local image, and fall back to pulling periovision-backend from
+      # Docker Hub - which fails with a message that looks like a scan problem rather
+      # than the build problem it actually is.
       - name: Build the image
+        id: build
         run: docker build -t periovision-backend:scan backend
 
       - name: Trivy scan (fail on HIGH and CRITICAL with a fix available)
@@ -112,7 +127,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Trivy scan (full report for the Security tab)
-        if: always()
+        if: always() && steps.build.outcome == 'success'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: periovision-backend:scan
@@ -121,7 +136,7 @@ jobs:
           severity: MEDIUM,HIGH,CRITICAL
 
       - name: Publish to the Security tab
-        if: always()
+        if: always() && steps.build.outcome == 'success'
         uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
         with:
           sarif_file: trivy-results.sarif
