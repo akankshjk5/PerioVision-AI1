@@ -80,6 +80,11 @@ backend/tests_live/**/__pycache__/
 !backend/weights/panoramic_severity.pt
 !backend/weights/manifest.json
 !backend/weights/manifest.json.sig
+# The approval record is the other half of the manifest: it names which exact hash is
+# cleared for clinical use. Without it a fresh clone verifies the weights and still
+# refuses to load them, because nothing says they were approved.
+!backend/weights/approvals.json
+!backend/weights/approvals.json.sig
 !backend/weights/conformal_calibration.json
 !backend/weights/detector_test_metrics.json
 !backend/weights/detector_test_metrics_dentex_v1.json

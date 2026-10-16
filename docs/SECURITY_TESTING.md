@@ -4,9 +4,10 @@ Nothing in this project is claimed as a control unless something demonstrates it
 layers do that: unit and integration tests, the Security Lab, and CI scanners.
 
 ```
-224 automated tests          pytest, demo mode, throwaway keys
- 22 Security Lab scenarios   110 assertions, runnable from the API
-  5 CI scanners              pip-audit, npm audit, gitleaks, CodeQL, Trivy
+271 automated tests          pytest, demo mode, throwaway keys
+ 22 Security Lab scenarios   110 assertions, from the API or offline
+  6 CI jobs                  dependency CVEs, secrets, CodeQL, container scan,
+                             SBOM, model manifest integrity
 ```
 
 ---
@@ -62,12 +63,24 @@ After every mutation run, `grep MUTANT` over `backend/app/` confirms nothing was
 
 ## 4. The Security Lab
 
-21 scenarios, 104 assertions, all against throwaway material — temporary directories,
+22 scenarios, 110 assertions, all against throwaway material — temporary directories,
 synthetic images, an isolated audit collection, a temporary keypair. Nothing touches real
 patients, weights, the audit trail or the signing key.
 
 `GET /api/security-lab` lists them; `POST /api/security-lab/run-all` runs them. Requires
 `security_lab:run` (admin or auditor).
+
+They also run without a server or a login, which is how to reproduce them in review:
+
+```python
+# cd backend, with the test environment from conftest.py applied
+from app import create_app
+from app.services import security_lab
+with create_app().app_context():
+    for s in security_lab.list_scenarios():
+        r = security_lab.run(s["id"])
+        print(s["id"], r["defended"], len(r["steps"]), "assertions")
+```
 
 | Group | Scenarios |
 |---|---|
